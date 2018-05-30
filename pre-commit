@@ -1,0 +1,489 @@
+#!/bin/sh
+
+echo 'Running pre-commit hook'
+
+#scanning function
+prog() {
+    local w=80 p=$1;  shift
+    # create a string of spaces, then change them to dots
+    printf -v dots "%*s" "$(( $p*$w/100 ))" ""; dots=${dots// /.};
+    # print those dots on a fixed-width space plus the percentage etc.
+    printf "\r\e[K|%-*s| %3d %% %s" "$w" "$dots" "$p" "$*";
+}
+
+
+#git add test-hook2
+#************* Configuration **************
+
+#Set the MIGRATION_PATH to the directory where you store all the *{up,down}.sql files\
+
+#SQL MIGRATION SCRIPTS
+GIS_TABLE_MIGRATION_TO_PATH="trunk/db/sql/migrations/original-sql"
+
+
+#GIS PACKAGES
+GIS_PACKAGES_MIGRATION_TO_PATH="trunk/db/sql/migrations/Packages"
+
+#Functions
+FUNCTIONS_MIGRATION_TO_PATH="trunk/db/sql/migrations/Functions"
+
+#Procedures
+PROCEDURES_MIGRATION_TO_PATH="trunk/db/sql/migrations/Procedures"
+
+#Triggers
+TRIGGERS_MIGRATION_TO_PATH="trunk/db/sql/migrations/Triggers"
+
+#VIEWS
+VIEWS_MIGRATION_TO_PATH="trunk/db/sql/migrations/Views"
+
+
+DEBUG=0
+
+FLYWAYPREFIX='X'
+
+JDBC_URL=`git config datasource.url`
+
+#********** End of configuration **********
+
+printf "\n"
+printf "\n"
+
+
+for x in {1..100} ; do
+    prog "$x" Fetching your target database configuration...
+    sleep .1   # do some work here
+done ; echo
+
+
+
+#check whether JDBC has been set
+
+if [ -z ${JDBC_URL=r+x} ];
+ then
+	echo ".....................................................................................................";
+        echo ".                                                                                                   .";
+        echo ". You have not set your database connection string..................!!!!                            .";
+        echo ".                                                                                                   .";
+        echo ". Set your database conection string by executing the following command:                            .";
+        echo ".                                                                                                   .";
+        echo ".         git config datasource.url jdbc:oracle:thin:@//IP:PORT/SID                                 .";
+        echo ".                                                                                                   .";
+        echo ".....................................................................................................";
+#exit request
+for x in {1..100} ; do
+    prog "$x" exiting request...
+    sleep .1   # do some work here
+done ; echo
+printf "\n"
+       	exit -1
+fi
+
+
+#Get the short JDBC URL
+
+JDBC_SHORT=`echo "$JDBC_URL" | cut -c 21-`
+
+#print jdbc string
+printf "\n"
+        echo "......................................................................................................";
+        echo ".                                                                                                    .";
+        echo ". Your database is set to: $JDBC_SHORT                                                               .";
+        echo ".                                                                                                    .";
+        echo "......................................................................................................";
+	
+printf "\n"
+
+
+
+#check whether all DLL changes have been saved to migration folders
+
+DB_CHANGES=`java -jar trunk/db/tools/scriptschecker.jar $JDBC_SHORT TQ_FMS TQ_FMS`
+
+#Exit when the row count is greater than 0
+
+if [ ${DB_CHANGES} -ne 0 ] ;
+then
+
+        echo ".....................................................................................................";
+        echo ".                                                                                                   ."
+        echo ".    We noticed that you have not marked $DB_CHANGES as saved in the table DB_CHANGES               .";
+        echo ".                                                                                                   ."
+	echo ".     You risk losing your unsaved changes if you continue                                          .";
+        echo ".                                                                                                   ."
+	echo ".....................................................................................................";
+
+fi
+
+#if [ ${DB_CHANGES} -ne 0 ] ;
+#then
+# while true; do
+
+ #  read -p "Do you wish to continue [Y/N]?"yn
+  #  case $yn in
+   #     [Yy]*) echo "The process will now exit!!!."; break;;
+#[Nn]* ) printf "\n"; echo "The process will now exit!!!."; printf "\n"; echo "You can re-run the migration by running this command .git/hooks/post-merge from your project_home"; exit;;
+ #       * ) echo "Please answer yes or no.";;
+  #  esac
+   # done
+#fi
+
+
+
+#print database version information
+
+for x in {1..100} ; do
+    prog "$x" checking database version...
+    sleep .1   # do some work here
+done ; echo
+	
+#count the number of missing migrations
+
+migration_status_count=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Pending |wc -l`
+
+#check whether there are missing migrations
+
+migration_pending=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Pending`
+
+#check whether there are pending migrations
+
+if [  $migration_status_count -eq 0 ];
+ then
+	echo ".............................................................................................................................................";
+        echo ".                                                                                                                                           .";
+        echo ".     You database $JDBC_SHORT is uptodate!!!                                                                                                 .";
+        echo ".                                                                                                                                           .";
+        echo ".............................................................................................................................................";
+fi
+
+
+#Display the missing Migrations
+
+if [[  $migration_status_count -ne 0 ]];
+ then
+	echo "............................................................................................................................................";
+        echo ".                                                                                                                                          .";
+        echo ".       			You have $migration_status_count missing Migrations                                                              .";
+ 	echo ".                                                                                                                                          .";
+        echo ".                      The following migrations are missing in your database:                                                              .";
+        echo ".                                                                                                                                          .";
+        echo ". $migration_pending                                                                                                                       .";
+
+	printf "\n"
+	while true; do
+    read -p "${bold}Do you wish flyway to automatically apply the pending  migrations to $JDBC_SHORT [Y/N]?" yn
+    case $yn in
+        [Yy]* )  printf "\n"; printf "\n"; trunk/db/tools/flyway/flyway migrate -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true repair; break;;
+        [Nn]* ) printf "\n"; echo "${bold}You run a risk of breaking existing functionality or missing out critical database updates!!!."; printf "\n"; echo "You can resume the process by running git commit in the project_workspace"; printf "\n"; exit;;
+
+        * ) echo "Please answer yes or no.";;
+    esac
+done
+fi
+
+printf "\n"
+printf "\n"
+
+for x in {1..100} ; do
+    prog "$x" Preparing your new database changes for versioning...
+    sleep .1   # do some work here
+done ; echo
+printf "\n"	
+
+
+#
+#test if migration to path (Where you are copying the files to) is valid.
+#
+echo 'Testing if FMS_TABLE_MIGRATION_TO_PATH exists...'
+if [ ! -d "$GIS_TABLE_MIGRATION_TO_PATH" ]; then
+  echo '*** GIT-MIGRATION-HOOK: directory to copy migrations to does not exist.'
+  echo '***                     The path is configurable and is currently gitRoot/'$GIS_TABLE_MIGRATION_TO_PATH
+  exit -1
+fi
+
+#
+#test if migration to Package path (Where you are copying the files to) is valid.
+#
+echo 'Test if FMS_PACKAGES_MIGRATION_TO_PATH exists'
+if [ ! -d "$GIS_PACKAGES_MIGRATION_TO_PATH" ]; then
+  echo '*** GIT-MIGRATION-HOOK: directory to copy migrations to does not exist.'
+  echo '***                     The path is configurable and is currently gitRoot/'$GIS_PACKAGES_MIGRATION_TO_PATH
+  exit -1
+fi
+
+echo 'Test if FMS_PROCEDURES_MIGRATION_TO_PATH exists'
+if [ ! -d "$PROCEDURES_MIGRATION_TO_PATH" ]; then
+  echo '*** GIT-MIGRATION-HOOK: directory to copy migrations to does not exist.'
+  echo '***                     The path is configurable and is currently gitRoot/'$PROCEDURES_MIGRATION_TO_PATH
+  exit -1
+fi
+
+echo 'Test if FMS_FUNCTIONS_MIGRATION_TO_PATH exists'
+if [ ! -d "$FUNCTIONS_MIGRATION_TO_PATH" ]; then
+  echo '*** GIT-MIGRATION-HOOK: directory to copy migrations to does not exist.'
+  echo '***                     The path is configurable and is currently gitRoot/'$FUNCTIONS_MIGRATION_TO_PATH
+  exit -1
+fi
+
+echo 'Test if FMS_TRIGGERS_MIGRATION_TO_PATH exists'
+if [ ! -d "$TRIGGERS_MIGRATION_TO_PATH" ]; then
+  echo '*** GIT-MIGRATION-HOOK: directory to copy migrations to does not exist.'
+  echo '***                     The path is configurable and is currently gitRoot/'$TRIGGERS_MIGRATION_TO_PATH
+  exit -1
+fi
+
+echo 'Test if FMS_VIEWS_MIGRATION_TO_PATH exists'
+if [ ! -d "$VIEWS_MIGRATION_TO_PATH" ]; then
+  echo '*** GIT-MIGRATION-HOOK: directory to copy migrations to does not exist.'
+  echo '***                     The path is configurable and is currently gitRoot/'$VIEWS_MIGRATION_TO_PATH
+  exit -1
+fi
+
+
+
+# Return the list of files that have changed
+
+# Grep only those in the Table Migrations Migration------------------------>  ORIGINAL SQLS
+
+for ref in `git diff --cached --name-only | grep ^$GIS_TABLE_MIGRATION_TO_PATH | grep -v "0"`; 
+   do
+   # Generate timestamp to append to migrate path - 
+   # Inspired by http://www.jeremyjarrell.com/using-flyway-db-with-distributed-version-control/
+   # Also review use of idpotent. 
+   #
+    TIMESTAMP=$(date +%Y%m%d%H%M%S%N)
+	echo '*** COPYING FILE TO DESTINATION *** ' 
+	echo '**** File to copy ****' $ref 
+	echo '***** Destination of the file' $GIS_TABLE_MIGRATION_TO_PATH/
+   #
+   # Extract the name of the File to be copied to Migration Folder. 
+   #
+	A=$(awk -F/ '{print $6}' <<< $ref)
+	echo 'File Name to copy is' $A
+    echo 'TIME STAMP FOR NOW IS' $TIMESTAMP
+	echo 'FileName of New file is' $GIS_TABLE_MIGRATION_TO_PATH/$FLYWAYPREFIX$TIMESTAMP'_'$A
+   # Copy file to Destination folder.  
+   mv $ref $GIS_TABLE_MIGRATION_TO_PATH/$FLYWAYPREFIX$TIMESTAMP'__'$A
+   
+   # Git Reset Head for the File just added... 
+   # Version 2 git reset HEAD $ref
+   
+   # Add copied file to Git Repo 
+ # git add $GIS_TABLE_MIGRATION_TO_PATH/$FLYWAYPREFIX$TIMESTAMP'__'$A
+ git add -A :/
+   #Version 2 git reset HEAD $ref
+done
+
+
+
+# Return the list of files that have changed
+# Grep only those in the Packages Migrations Migration From Path -----------------------------------------------> Package Bodies
+
+for ref2 in `git diff --cached --name-only | grep ^$GIS_PACKAGES_MIGRATION_TO_PATH | grep -E '*.(pkb)$'`; 
+   do
+   # Generate timestamp to append to migrate path - 
+   # Inspired by http://www.jeremyjarrell.com/using-flyway-db-with-distributed-version-control/
+   # Also review use of idpotent. 
+   #
+    #TIMESTAMP=$(date +%Y%m%d%H%M%S%N)
+	PACKAGESUFFIX="R"
+	echo '*** COPYING FILE TO DESTINATION *** ' 
+	echo '**** File to copy ****' $ref2 
+	echo '***** Destination of the file' $GIS_PACKAGES_MIGRATION_TO_PATH/
+   #
+   # Extract the name of the File to be copied to Migration Folder. 
+   #
+	A2=$(awk -F/ '{print $6}' <<< $ref2)
+	echo 'File Name to copy is' $A2
+    echo 'TIME STAMP FOR NOW IS' $PACKAGESUFFIX
+	echo 'FileName of New file is' $GIS_PACKAGES_MIGRATION_TO_PATH/$PACKAGESUFFIX'_'$A2
+   # Copy file to Destination folder.  
+   mv $ref2 $GIS_PACKAGES_MIGRATION_TO_PATH/$PACKAGESUFFIX'__'$A2'.sql'
+   
+   # Git Reset Head for the File just added... 
+   # Version 2 git reset HEAD $ref
+   
+   # Add copied file to Git Repo 
+ # git add $GIS_TABLE_MIGRATION_TO_PATH/$FLYWAYPREFIX$PACKAGESUFFIX'__'$A
+  git add -A :/
+   #Version 2 git reset HEAD $ref
+done
+
+
+
+# Return the list of files that have changed
+# Grep only those in the Packages Migrations Migration From Path----------------------------------->Package Spec 
+
+for ref3 in `git diff --cached --name-only | grep ^$GIS_PACKAGES_MIGRATION_TO_PATH | grep -E '*.(pks)$'`; 
+   do
+   # Generate timestamp to append to migrate path - 
+   # Inspired by http://www.jeremyjarrell.com/using-flyway-db-with-distributed-version-control/
+   # Also review use of idpotent. 
+   #
+    #TIMESTAMP=$(date +%Y%m%d%H%M%S%N)
+	PACKAGESUFFIX2="R"
+	echo '*** COPYING FILE TO DESTINATION *** ' 
+	echo '**** File to copy ****' $ref3 
+	echo '***** Destination of the file' $GIS_PACKAGES_MIGRATION_TO_PATH/
+   #
+   # Extract the name of the File to be copied to Migration Folder. 
+   #
+	A3=$(awk -F/ '{print $6}' <<< $ref3)
+	echo 'File Name to copy is' $A3
+    echo 'TIME STAMP FOR NOW IS' $PACKAGESUFFIX2
+	echo 'FileName of New file is' $GIS_PACKAGES_MIGRATION_TO_PATH/$PACKAGESUFFIX2'_'$A3
+   # Copy file to Destination folder.  
+   mv $ref3 $GIS_PACKAGES_MIGRATION_TO_PATH/$PACKAGESUFFIX2'__'$A3'.sql'
+   
+   # Git Reset Head for the File just added... 
+   # Version 2 git reset HEAD $ref
+   
+   # Add copied file to Git Repo 
+ # git add $GIS_TABLE_MIGRATION_TO_PATH/$FLYWAYPREFIX$PACKAGESUFFIX'__'$A
+   git add -A :/
+   #Version 2 git reset HEAD $ref
+done
+
+# Return the list of files that have changed
+# Grep only those in the Functions Migrations From Path----------------------------------->Functions
+
+for ref7 in `git diff --cached --name-only | grep ^$FUNCTIONS_MIGRATION_TO_PATH | grep -E '*.(fnc)$'`;
+   do
+   # Generate timestamp to append to migrate path - 
+   # Inspired by http://www.jeremyjarrell.com/using-flyway-db-with-distributed-version-control/
+   # Also review use of idpotent. 
+   #
+    #TIMESTAMP=$(date +%Y%m%d%H%M%S%N)
+        PACKAGESUFFIX7="R"
+        echo '*** COPYING FILE TO DESTINATION *** ' 
+        echo '**** File to copy ****' $ref7 
+        echo '***** Destination of the file' $FUNCTIONS_MIGRATION_TO_PATH/
+   #
+   # Extract the name of the File to be copied to Migration Folder. 
+   #
+        A7=$(awk -F/ '{print $6}' <<< $ref7)
+        echo 'File Name to copy is' $A7
+   # echo 'TIME STAMP FOR NOW IS' $TIMESTAMP
+        echo 'FileName of New file is' $FUNCTIONS_MIGRATION_TO_PATH/$PACKAGESUFFIX7'_'$A7
+   # Copy file to Destination folder.  
+   mv $ref7 $FUNCTIONS_MIGRATION_TO_PATH/$PACKAGESUFFIX7'__'$A7'.sql'
+
+   # Git Reset Head for the File just added... 
+   # Version 2 git reset HEAD $ref
+
+   # Add copied file to Git Repo 
+ # git add $FUNCTIONS_MIGRATION_TO_PATH/$FLYWAYPREFIX$PACKAGESUFFIX'__'$A
+   git add -A :/
+   #Version 2 git reset HEAD $ref
+done
+
+
+# Return the list of files that have changed
+# Grep only those in the Procedures Migration From Path----------------------------------->Procedures
+
+for ref8 in `git diff --cached --name-only | grep ^$PROCEDURES_MIGRATION_TO_PATH | grep -E '*.(prc)$'`;
+   do
+   # Generate timestamp to append to migrate path - 
+   # Inspired by http://www.jeremyjarrell.com/using-flyway-db-with-distributed-version-control/
+   # Also review use of idpotent. 
+   #
+    #TIMESTAMP=$(date +%Y%m%d%H%M%S%N)
+        PACKAGESUFFIX8="R"
+        echo '*** COPYING FILE TO DESTINATION *** ' 
+        echo '**** File to copy ****' $ref8 
+        echo '***** Destination of the file' $PROCEDURES_MIGRATION_TO_PATH/
+   #
+   # Extract the name of the File to be copied to Migration Folder. 
+   #
+        A8=$(awk -F/ '{print $6}' <<< $ref8)
+        echo 'File Name to copy is' $A8
+   # echo 'TIME STAMP FOR NOW IS' $TIMESTAMP
+        echo 'FileName of New file is' $PROCEDURES_MIGRATION_TO_PATH/$PACKAGESUFFIX8'_'$A8
+   # Copy file to Destination folder.  
+   mv $ref8 $PROCEDURES_MIGRATION_TO_PATH/$PACKAGESUFFIX8'__'$A8'.sql'
+
+   # Git Reset Head for the File just added... 
+   # Version 2 git reset HEAD $ref
+
+   # Add copied file to Git Repo 
+ # git add $FUNCTIONS_MIGRATION_TO_PATH/$FLYWAYPREFIX$PACKAGESUFFIX'__'$A
+   git add -A :/
+   #Version 2 git reset HEAD $ref
+done
+
+
+# Return the list of files that have changed
+# Grep only those in the Views Migrations Migration From Path----------------------------------->Views
+
+
+for ref10 in `git diff --cached --name-only | grep ^$VIEWS_MIGRATION_TO_PATH | grep -E '*.(vw)$'`;
+   do
+   # Generate timestamp to append to migrate path - 
+   # Inspired by http://www.jeremyjarrell.com/using-flyway-db-with-distributed-version-control/
+   # Also review use of idpotent. 
+   #
+    #TIMESTAMP=$(date +%Y%m%d%H%M%S%N)
+        PACKAGESUFFIX10="R"
+        echo '*** COPYING FILE TO DESTINATION *** ' 
+        echo '**** File to copy ****' $ref10
+        echo '***** Destination of the file' $VIEWS_MIGRATION_TO_PATH/
+   #
+   # Extract the name of the File to be copied to Migration Folder. 
+   #
+        A10=$(awk -F/ '{print $6}' <<< $ref10)
+        echo 'File Name to copy is' $A10
+   # echo 'TIME STAMP FOR NOW IS' $TIMESTAMP
+        echo 'FileName of New file is' $VIEWS_MIGRATION_TO_PATH/$PACKAGESUFFIX10'_'$A10
+   # Copy file to Destination folder.  
+   mv $ref10 $VIEWS_MIGRATION_TO_PATH/$PACKAGESUFFIX10'__'$A10'.sql'
+
+   # Git Reset Head for the File just added... 
+   # Version 2 git reset HEAD $ref
+
+   # Add copied file to Git Repo 
+ # git add $FUNCTIONS_MIGRATION_TO_PATH/$FLYWAYPREFIX$PACKAGESUFFIX'__'$A
+   git add -A :/
+   #Version 2 git reset HEAD $ref
+done
+
+# Return the list of files that have changed
+# Grep only those in the Triggers Migrations Migration From Path----------------------------------->Triggers
+
+for ref11 in `git diff --cached --name-only | grep ^$TRIGGERS_MIGRATION_TO_PATH | grep -E '*.(trg)$'`;
+   do
+   # Generate timestamp to append to migrate path - 
+   # Inspired by http://www.jeremyjarrell.com/using-flyway-db-with-distributed-version-control/
+   # Also review use of idpotent. 
+   #
+    #TIMESTAMP=$(date +%Y%m%d%H%M%S%N)
+        PACKAGESUFFIX11="R"
+        echo '*** COPYING FILE TO DESTINATION *** ' 
+        echo '**** File to copy ****' $ref11
+        echo '***** Destination of the file' $TRIGGERS_MIGRATION_TO_PATH/
+   #
+   # Extract the name of the File to be copied to Migration Folder. 
+   #
+        A11=$(awk -F/ '{print $6}' <<< $ref11)
+        echo 'File Name to copy is' $A11
+   # echo 'TIME STAMP FOR NOW IS' $TIMESTAMP
+        echo 'FileName of New file is' $TRIGGERS_MIGRATION_TO_PATH/$PACKAGESUFFIX11'_'$A11
+   # Copy file to Destination folder.  
+   mv $ref11 $TRIGGERS_MIGRATION_TO_PATH/$PACKAGESUFFIX11'__'$A11'.sql'
+
+   # Git Reset Head for the File just added... 
+   # Version 2 git reset HEAD $ref
+
+   # Add copied file to Git Repo 
+ # git add $FUNCTIONS_MIGRATION_TO_PATH/$FLYWAYPREFIX$PACKAGESUFFIX'__'$A
+   git add -A :/
+   #Version 2 git reset HEAD $ref
+done
+
+
+# Turn on debugging if need be. 
+ 
+if [ $DEBUG -eq 1 ]; then
+	echo '*** DEBUGGING IS ON *** ' 
+	exit -1
+fi
+
+

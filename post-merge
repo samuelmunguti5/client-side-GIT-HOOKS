@@ -1,0 +1,309 @@
+#!/bin/sh
+
+#scanning function
+prog() {
+    local w=80 p=$1;  shift
+    # create a string of spaces, then change them to dots
+    printf -v dots "%*s" "$(( $p*$w/100 ))" ""; dots=${dots// /.};
+    # print those dots on a fixed-width space plus the percentage etc.
+    printf "\r\e[K|%-*s| %3d %% %s" "$w" "$dots" "$p" "$*";
+}
+
+
+#check whether the JDBC has been set
+
+JDBC_URL=`git config datasource.url`
+JDBC_SHORT=`echo "$JDBC_URL" | cut -c 21-`
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+printf "\n"
+printf "\n"
+
+
+for x in {1..100} ; do
+    prog "$x" Fetching your target database configuration...
+    sleep .1   # do some work here
+done ; echo
+	
+
+
+#check whether JDBC has been set
+
+if [ -z ${JDBC_URL=r+x} ];
+ then
+        echo ".....................................................................................................";
+        echo ".                                                                                                   .";
+        echo ". You have not set your database connection string..................!!!!                            .";
+        echo ".                                                                                                   .";
+        echo ". Set your database conection string by executing the following command:                            .";
+        echo ".                                                                                                   .";
+        echo ".         git config datasource.url jdbc:oracle:thin:@//IP:PORT/SID                                 .";
+        echo ".                                                                                                   .";
+        echo ".....................................................................................................";
+
+	#exit request	
+for x in {1..100} ; do
+    prog "$x" exiting request...
+    sleep .1   # do some work here
+done ; echo
+printf "\n"
+
+       	exit -1
+fi
+#print jdbc string
+printf "\n"
+        echo "......................................................................................................";
+        echo ".                                                                                                    .";
+        echo ". Your database is set to: $JDBC_SHORT                                                               .";
+        echo ".                                                                                                    .";
+	echo "......................................................................................................";
+printf "\n"
+
+#check whether all DLL changes have been saved to migration folders
+
+DB_CHANGES=`java -jar trunk/db/tools/scriptschecker.jar $JDBC_SHORT TQ_FMS TQ_FMS`
+
+#Exit when the row count is greater than 0
+
+if [ ${DB_CHANGES} -gt 0 ] ;
+then
+        echo ".....................................................................................................";
+        echo ".                                                                                                   ."
+        echo ".    We noticed that you have not marked $DB_CHANGES changes as saved in the table DB_CHANGES               .";
+        echo ".                                                                                                   ."
+	echo ".     You risk losing your unsaved changes if you continue!                                         .";
+        echo ".                                                                                                   ."
+	echo ".....................................................................................................";
+printf "\n"
+fi
+
+printf "\n"
+printf "\n"
+if [ ${DB_CHANGES} -gt 0 ] ;
+then
+while true;	
+do
+	read -p "Do you wish to continue? (Y/N)" reply1 < /dev/tty;
+
+	choice1=$(echo $reply1|sed 's/(.*)/L1/');
+printf "\n"
+
+if [ "$choice1" = 'y' ] ;
+then
+
+printf "\n"
+
+for x in {1..100} ; do
+    prog "$x" Fetching your database version...
+    sleep .1   # do some work here
+
+done ; echo
+printf "\n"
+
+#check for pending migrations
+migration_status_count=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Pending |wc -l`
+
+#check whether there are pending migrations
+
+migration_pending=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Pending`
+
+
+#check for failed migrations
+migration_status_countf=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Failed |wc -l`
+
+#check whether there are failed migrations
+
+migration_failed=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Failed`
+
+#Handling Failed Migrations
+
+if [  $migration_status_countf -ne 0 ];
+ then
+       	echo ".............................................................................................................................................";
+	echo ".                                                                                                                                           .";
+        echo ".We noticed that your previous database migration failed  please contact your local administrator to assist in resolving                    .";
+        echo ".                                                                                                                                           .";
+ 	echo ".............................................................................................................................................";
+fi
+
+#Display the Failed Migrations
+
+if [[  $migration_status_countf -ne 0 ]];
+ then
+       	echo ".............................................................................................................................................";
+ 	echo ".                                                                                                                                           .";
+        echo ".       			You have $migration_status_countf failed Migrations  from your previous migration                                 .";
+ 	echo ".                                                                                                                                           .";
+        echo ".                      The following migrations are marked as failed from your previous migration run:                                      .";
+        echo ".                                                                                                                                           .";
+        echo ". $migration_failed                                                                                                                         .";
+        printf "\n"
+        printf "\n"
+	echo "Please contact your local administrator to assist in resolving                                                                               .";
+	printf "\n"
+	echo "You can re-run the migration by running this command .git/hooks/post-merge from your project_home";
+	printf "\n"
+	exit -1
+fi
+
+
+
+
+#check whethet there are pending migrations
+if [  $migration_status_count -eq 0 ];
+ then
+       	echo ".............................................................................................................................................";
+	echo ".                                                                                                                                           .";
+        echo ".              No missing Migrations have been found                                                                                        .";
+        echo ".                                                                                                                                           .";
+        echo ".     You database $JDBC_SHORT is uptodate!!!                                                                                               .";
+        echo ".                                                                                                                                           .";
+ 	echo ".............................................................................................................................................";
+   	exit -1
+fi
+
+
+#Display the pending Migrations
+
+if [[  $migration_status_count -ne 0 ]];
+ then
+       	echo ".............................................................................................................................................";
+ 	echo ".                                                                                                                                           .";
+        echo ".       			You have $migration_status_count missing Migrations                                                               .";
+ 	echo ".                                                                                                                                           .";
+        echo ".                      The following migrations are missing in your database:                                                               .";
+        echo ".                                                                                                                                           .";
+        echo ". $migration_pending                                                                                                                        .";
+	printf "\n"
+fi
+
+
+if [[  $migration_status_count -ne 0 ]];
+then
+while true;     
+do
+        read -n1 -p "Do you want Flyway to automatically run the missing database migrations against $JDBC_SHORT (Y/N)" reply < /dev/tty;
+choice=$(echo $reply|sed 's/(.*)/L1/');
+if [ "$choice" = 'y' ] ;
+then
+        printf "\n"
+        echo "Flyway will now migrate the missing migrations in the target database $JDBC_SHORT";
+
+trunk/db/tools/flyway/flyway migrate -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false
+
+printf "\n"
+
+for x in {1..100} ; do
+    prog "$x" Cleaning up.....
+    sleep .1   # do some work here
+done ; echo
+printf "\n"	
+
+
+#check for pending migrations
+final_status_count_p=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Pending |wc -l`
+
+#check for failed migrations
+final_status_count_f=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Failed |wc -l`
+
+
+#List Migrations that are still Pending
+final_migration_pending=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Pending`
+
+
+#List Migrations that have Failed
+final_migration_failed=`trunk/db/tools/flyway/flyway -url=$JDBC_URL -user=TQ_FMS -password=TQ_FMS -baselineOnMigrate=true -repeatableSqlMigrationPrefix=R -sqlMigrationSuffix=.sql -sqlMigrationPrefix=X -schemas=TQ_FMS -locations=filesystem:trunk/db/sql/migrations/Packages,filesystem:trunk/db/sql/migrations/original-sql,filesystem:trunk/db/sql/migrations/Views,filesystem:trunk/db/sql/migrations/Triggers,filesystem:trunk/db/sql/migrations/Functions,filesystem:trunk/db/sql/migrations/Procedures   -sqlMigrationSeparator=__ -ignoreMissingMigrations=true -outOfOrder=true -validateOnMigrate=false info | grep Failed`
+
+
+if [[  $final_status_count_f -ne 0 ]];
+ then
+        echo "...............................................................................................................................";
+        echo ".                                                                                                                             .";
+        echo ".We have noticed that $final_status_count_f migrations have failed to migrate due to above errors!!!                          .";
+ 	echo ".                                                                                                                             .";
+        echo ".The following migrations have failed due to the above errors:                                                                .";
+        echo ".                                                                                                                             .";
+        echo ". $final_migration_failed                                                                                                     .";
+	printf "\n"
+        echo ".We have noticed that $final_status_count_f migrations have failed to migrate due to above errors!!!                          .";
+	printf "\n"
+        echo "Please Contact you local administrator to help in resolving your pending database migrations..."
+	printf "\n"
+	printf "\n"; echo "The process will now exit!!!."; printf "\n"; echo "You can re-run the migration by running this command .git/hooks/post-merge from your project_home";
+        printf "\n";
+exit -1
+fi
+
+
+if [  $final_status_count_p -eq 0 ];
+ then
+	echo "..................................................................................................................";
+        echo ".                                                                              			               .";
+        echo ".         You database $JDBC_SHORT is now uptodate!!!                                                            .";
+        echo ".                                                                                                                .";
+      exit -1
+fi
+
+
+if [[  $final_status_count_p -ne 0 ]];
+ then
+        echo "...................................................................................................................";
+        echo ".                                                                                                                 .";
+        echo ".We have noticed that $final_status_count_p migrations are still pending!!!                                       .";
+ 	echo ".                                                                                                                 .";
+        echo ".The following  migrations are still pending:                                                                     .";
+        echo ".                                                                                                                 .";
+        echo ". $final_migration_pending                                                                                        .";
+	printf "\n"
+        echo ".We have noticed that $final_status_count_p migrations are still Pending!!!                                       .";
+	printf "\n"
+       echo "Please Contact you local administrator to help in resolving your pending database migrations!!!"
+	printf "\n"
+	printf "\n"; 
+	echo "The process will now exit!!!."; printf "\n"; echo "You can re-run the migration by running this command .git/hooks/post-merge from your project_home";
+	exit -1
+fi
+
+
+elif [ "$choice" = 'n'  ]
+then
+printf "\n"
+printf "\n"; echo "The process will now exit!!!."; printf "\n"; echo "You can re-run the migration by running this command .git/hooks/post-merge from your project_home";
+printf "\n"
+  sleep 3
+  exit 0
+else
+printf "\n"
+        echo "invalid answer, please type y or n";
+printf "\n"
+fi
+done
+fi
+
+
+
+
+elif [ "$choice1" = 'n'  ]
+then
+printf "\n"
+
+printf "\n"; echo "The process will now exit!!!."; printf "\n"; echo "You can re-run the migration by running this command .git/hooks/post-merge from your project_home";
+
+printf "\n"
+  
+sleep 3
+  exit 0
+else
+printf "\n"
+	echo "invalid answer, please type y or n";
+printf "\n"	
+fi
+done
+fi
+
+
+
+
+
+
